@@ -22,13 +22,16 @@ This project investigates whether **TabDDPM** (Tabular Denoising Diffusion Proba
 
 ## Dataset
 
+This project uses the Hospital Readmission dataset from Kaggle.
+
+Download it from:
+https://www.kaggle.com/datasets/brandao/diabetes?resource=download
+
 **Diabetes 130-US Hospitals** (UCI / Kaggle)
 - 101,766 patient records from 130 US hospitals (1999–2008)
 - 50 features: demographics, diagnoses (ICD codes), medications, lab results
 - Target: `readmitted` — `NO`, `<30` (within 30 days), `>30` (after 30 days)
 - Class split: ~11% `<30`, ~89% other
-
-The raw CSV lives at `data/diabetic_data.csv` and is never modified in place.
 
 ---
 
