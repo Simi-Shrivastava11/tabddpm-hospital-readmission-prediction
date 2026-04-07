@@ -1,107 +1,112 @@
-# TabDDPM: Using Diffusion Models to Generate Synthetic Patient Data for Hospital Readmission Prediction
+# TabDDPM for Hospital Readmission Prediction
 
-**Group 5 — DATA 612 Final Project**
-Taneir Arani · Jiten Bhalavat · Rohith Mandla · Anum Sagheer · Simi Shrivastava
+Group project exploring whether **diffusion-based synthetic tabular data generation** can improve prediction of **30-day hospital readmission** in an imbalanced clinical dataset.
 
----
+This repository investigates whether **TabDDPM (Tabular Denoising Diffusion Probabilistic Model)** can generate realistic synthetic minority-class patient records that improve downstream classifier performance compared with standard approaches such as **no augmentation**, **SMOTE**, and **CTGAN**.
+
+> **Project status:** In progress  
+> This repository documents an active group research project and will continue to evolve as implementation, experiments, and evaluation are completed.
 
 ## Overview
 
-Hospital readmission within 30 days is both costly and clinically significant. In the Diabetes 130-US Hospitals dataset, only **11% of patients** were readmitted within 30 days — a severe class imbalance that causes standard classifiers to ignore the exact patients that matter most.
+Hospital readmission within 30 days is both clinically important and expensive. In the Diabetes 130-US Hospitals dataset, only about **11%** of patients are readmitted within 30 days, while the remaining **89%** are not. This severe class imbalance makes it difficult for standard classifiers to learn the patterns associated with the patients who matter most.
 
-This project investigates whether **TabDDPM** (Tabular Denoising Diffusion Probabilistic Model, Kotelnikov et al. ICML 2023) can generate synthetic minority-class patients realistic enough to improve downstream classifier performance. We compare TabDDPM against three baselines:
+This project studies whether **TabDDPM**, a diffusion model designed for tabular data, can generate realistic synthetic high-risk patient records and improve performance on the rare readmission class. We compare four settings:
 
-| Method | Description |
-|---|---|
-| **No fix** | Train XGBoost on the raw imbalanced data |
-| **SMOTE** | Interpolate between real minority-class patients |
-| **CTGAN** | GAN-based conditional tabular data generator |
-| **TabDDPM** | Diffusion-model-based conditional tabular generator *(ours)* |
+- **No fix** — train directly on the imbalanced data
+- **SMOTE** — oversample the minority class using interpolation
+- **CTGAN** — generate synthetic rows with a GAN-based model
+- **TabDDPM** — generate synthetic rows with a diffusion model
 
----
+## Research Question
+
+Can a diffusion model learn what high-risk diabetic patients look like well enough to generate realistic synthetic readmission cases, and does augmenting the training data with those cases improve classifier performance on real patients?
+
+## My Contribution
+
+My primary responsibility in this project is **class conditioning and synthetic data generation**.
+
+Specifically, I am responsible for:
+- implementing the class-conditioning component so the model can distinguish between readmitted and non-readmitted patients
+- injecting the readmission label into the model during training
+- writing the generation pipeline that starts from noise and produces synthetic minority-class patient rows
+- helping create visual comparisons of real vs. generated patients for the final analysis
 
 ## Dataset
 
-This project uses the Hospital Readmission dataset from Kaggle.
+This project uses the **Diabetes 130-US Hospitals** dataset, available through Kaggle.
 
-Download it from:
-https://www.kaggle.com/datasets/brandao/diabetes?resource=download
+Dataset characteristics:
+- **101,766** patient records
+- data collected from **130 U.S. hospitals**
+- approximately **50 features**
+- includes both **numerical** and **categorical** variables
+- target variable indicates whether the patient was readmitted within 30 days
 
-**Diabetes 130-US Hospitals** (UCI / Kaggle)
-- 101,766 patient records from 130 US hospitals (1999–2008)
-- 50 features: demographics, diagnoses (ICD codes), medications, lab results
-- Target: `readmitted` — `NO`, `<30` (within 30 days), `>30` (after 30 days)
-- Class split: ~11% `<30`, ~89% other
+The mixed data types make this a strong use case for tabular generative modeling, since the method must handle both continuous and categorical features.
 
----
+## Project Goals
 
-## Project Structure
+The project has three main goals:
 
-```
-tabddpm-hospital-readmission-prediction/
-├── data/
-│   └── diabetic_data.csv          # Raw dataset (do not modify)
-├── models/                        # Saved model checkpoints (gitignored)
-├── results/
-│   ├── figures/                   # Generated plots (gitignored)
-│   └── metrics/                   # Evaluation CSVs / JSON (gitignored)
-├── notebook/
-│   └── main.ipynb                 # End-to-end notebook
-├── requirements.txt
-├── CLAUDE.md                      # AI assistant context file
-└── README.md
-```
+1. **Train a TabDDPM model** on structured hospital readmission data
+2. **Generate synthetic minority-class patients** at different augmentation levels
+3. **Evaluate whether augmentation improves classifier performance** relative to standard imbalance-handling baselines
 
----
+## Methodology
 
-## ML Workflow
+### 1. Data Preparation
+The dataset is cleaned, categorical variables are encoded, numerical variables are scaled, and the data is split into stratified training and test sets.
 
-```
-Raw Data
-   │
-   ▼
-1. Preprocessing
-   • Drop identifiers (encounter_id, patient_nbr)
-   • Replace "?" with NaN; impute or drop
-   • Encode categoricals (label / one-hot)
-   • Scale numerics (StandardScaler)
-   • Stratified 80/20 train-test split
-   │
-   ▼
-2. Baseline Classifier (no augmentation)
-   • XGBoost on imbalanced training set
-   • Record F1 (<30 class) and AUC-ROC
-   │
-   ▼
-3. Synthetic Data Generation
-   ├── SMOTE       (imbalanced-learn)
-   ├── CTGAN       (ctgan / sdv)
-   └── TabDDPM     (PyTorch, implemented from scratch)
-         • Forward: add Gaussian noise over T=1000 steps (numerical cols)
-         • Forward: multinomial diffusion (categorical cols)
-         • Reverse: U-Net-style MLP predicts added noise (class-conditioned)
-         • Generate at 50%, 100%, 200% minority-class augmentation levels
-   │
-   ▼
-4. Augmented Classifiers
-   • Retrain XGBoost on real + synthetic training data for each method × level
-   • 5 random seeds per experiment; report mean ± std
-   │
-   ▼
-5. Evaluation
-   • Primary:   F1 score on the <30-day readmission class
-   • Secondary: AUC-ROC
-   • Fidelity:  Column-wise distribution plots (real vs. synthetic)
-                Jensen-Shannon divergence per column
-                t-SNE / UMAP 2-D embedding overlay
-   • Stress:    Train entirely on synthetic, test on real patients
-```
+### 2. TabDDPM Training
+The diffusion model is trained in two stages:
+- a forward process that gradually corrupts patient rows with noise
+- a reverse process that learns to recover the original structure from noisy inputs
 
----
+For categorical columns, the project uses multinomial diffusion rather than Gaussian noise.
+
+### 3. Conditional Generation
+The model is conditioned on the class label so it can explicitly generate synthetic **readmitted** patients rather than uncontrolled random rows. My part of the project focuses on this conditioning and generation step.
+
+### 4. Baselines
+We compare TabDDPM against:
+- no class-imbalance correction
+- SMOTE
+- CTGAN
+
+### 5. Downstream Evaluation
+Each augmentation strategy is used to retrain an **XGBoost** classifier, which is then evaluated on held-out real patient data.
+
+## Evaluation Plan
+
+The primary evaluation metric is:
+
+- **F1 score on the readmitted (<30 day) class**
+
+Secondary and supporting metrics include:
+- **AUC-ROC**
+- **Jensen-Shannon divergence** between real and synthetic feature distributions
+- **t-SNE-based visual comparisons**
+- a **synthetic-train / real-test** stress test to assess whether the generated data captures useful real-world structure
+
+Experiments are planned across multiple augmentation levels:
+- **50%**
+- **100%**
+- **200%** of the minority-class size
+
+## Tech Stack
+
+- **Python**
+- **PyTorch**
+- **XGBoost**
+- **scikit-learn**
+- **Jupyter Notebook**
+- **imbalanced-learn**
+- **CTGAN / SDV**
 
 ## Setup
 
-### 1. Clone and enter the repo
+### 1. Clone the repository
 
 ```bash
 git clone <repo-url>
@@ -112,7 +117,13 @@ cd tabddpm-hospital-readmission-prediction
 
 ```bash
 python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+source venv/bin/activate
+```
+
+On Windows:
+
+```bash
+venv\Scripts\activate
 ```
 
 ### 3. Install dependencies
@@ -121,33 +132,62 @@ source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-> **GPU note:** if you have a CUDA-capable GPU, install the matching `torch` wheel from pytorch.org before running `pip install -r requirements.txt`.
-
 ### 4. Launch Jupyter
 
 ```bash
 jupyter lab
 ```
 
-Open `notebook/main.ipynb` and run cells top to bottom.
+Then open:
 
----
+```text
+notebook/main.ipynb
+```
 
-## Evaluation Metrics
+## Current Status
 
-| Metric | Purpose |
-|---|---|
-| F1 (`<30` class) | Primary — how well the model catches high-risk patients |
-| AUC-ROC | Overall ranking quality |
-| Jensen-Shannon divergence | Fidelity of generated distributions per column |
-| t-SNE overlay | Visual fidelity check |
-| Synth-train / real-test F1 | Stress test of generative quality |
+This project is still in the **implementation and experimentation phase**. At this stage, the repository is intended to document:
 
----
+- the research question
+- planned methodology
+- team responsibilities
+- evolving implementation for a graduate machine learning project
+
+Results, visualizations, and final evaluation findings will be added as the project progresses.
+
+## Why This Project Matters
+
+This project sits at the intersection of:
+- healthcare machine learning
+- class-imbalance learning
+- synthetic tabular data generation
+- diffusion models for structured data
+
+For faculty, it shows engagement with a current research-style question involving generative modeling and evaluation. For recruiters, it demonstrates practical interest in tabular ML, experimental design, and structured-data modeling beyond standard classification pipelines.
+
+## Future Additions
+
+As the project progresses, this repository will be expanded with:
+- model architecture details
+- training curves
+- synthetic vs. real distribution plots
+- final evaluation metrics
+- ablation comparisons across augmentation levels
+- results summary and conclusions
+
+## Team
+
+Group 5 — DATA 612 Final Project
+
+- Taneir Arani
+- Jiten Bhalavat
+- Rohith Mandla
+- Anum Sagheer
+- Simi Shrivastava
 
 ## References
 
-1. Kotelnikov et al. (2023). *TabDDPM: Modelling Tabular Data with Diffusion Models.* ICML 2023. https://arxiv.org/abs/2209.15421
-2. Ho et al. (2020). *Denoising Diffusion Probabilistic Models.* NeurIPS 2020. https://arxiv.org/abs/2006.11239
-3. Xu et al. (2019). *Modeling Tabular Data using Conditional GAN.* NeurIPS 2019. https://arxiv.org/abs/1907.00503
-4. Chawla et al. (2002). *SMOTE: Synthetic Minority Over-sampling Technique.* JAIR. https://arxiv.org/abs/1106.1813
+1. Kotelnikov et al. (2023). *TabDDPM: Modelling Tabular Data with Diffusion Models*
+2. Ho et al. (2020). *Denoising Diffusion Probabilistic Models*
+3. Xu et al. (2019). *Modeling Tabular Data using Conditional GAN*
+4. Chawla et al. (2002). *SMOTE: Synthetic Minority Over-sampling Technique*
