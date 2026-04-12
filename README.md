@@ -163,8 +163,6 @@ This project sits at the intersection of:
 - synthetic tabular data generation
 - diffusion models for structured data
 
-For faculty, it shows engagement with a current research-style question involving generative modeling and evaluation. For recruiters, it demonstrates practical interest in tabular ML, experimental design, and structured-data modeling beyond standard classification pipelines.
-
 ## Future Additions
 
 As the project progresses, this repository will be expanded with:
